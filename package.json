@@ -10,6 +10,7 @@
   "main": "./lib/activator.js",
   "dependencies": {
     "async": "^0.9.0",
+    "jade": "^1.7.0",
     "lodash-node": "^2.4.1",
     "node-common-errors": "^0.1.0",
     "node-uuid": "^1.4.1",

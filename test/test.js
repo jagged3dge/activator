@@ -93,7 +93,7 @@ var quote = function (regex) {
 			port: MAILPORT,
 			host: 'localhost',
 			tls: { rejectUnauthorized: false },
-      // debug: true
+      debug: true
 		},
 
 		createUser = function (req, res, next) {
@@ -123,7 +123,10 @@ var quote = function (regex) {
             data = null;
         }
         return function (rcpt, msgid, content) {
-            var url, ret, re = new RegExp('http:\\/\\/\\S*' + path.replace(/\//g, '\\/') + '\\?code=([^\\s\\&]+)\\&email=(\\S+)\\&user=([^\\s\\&]+)');
+            var url,
+                ret,
+                re = new RegExp('http:\\/\\/\\S*' + path.replace(/\//g, '\\/') + '\\?code=([^\\s\\&]+)\\&email=(\\S+)\\&user=([^\\s\\&"]+)');
+
             rcpt.should.eql(email);
             // check for the correct Subject in the email
             should.exist(content.data);
@@ -150,23 +153,23 @@ var quote = function (regex) {
                 ret.email.should.eql(email);
             }
             if (!ret) {
-                url = (content.text || content.html).match(re);
+                url = content.html.match(re);
                 should.exist(url);
                 // check that code and email match what is in database
                 url.length.should.eql(4);
                 ret = _.object(["path", "code", "email", "user"], url);
-                ret.email.should.eql(email);
+                ret.email.should.eql(encodeURIComponent(email));
             }
             cb(null, ret);
         };
     },
 
     aHandler = function (email, data, cb) {
-        return genHandler(email, "Activate Email", "/activate/my/account", data, cb);
+        return genHandler(email, "Activate Your Account", '/api/1/users/activate', data, cb);
     },
 
     rHandler = function (email, data, cb) {
-        return genHandler(email, "Password Reset Email", "/reset/my/password", data, cb);
+        return genHandler(email, "Password Reset Email", '/api/1/users/forgot', data, cb);
     },
 
 		createActivateHandlerError = function (err, req, res, next) {
