@@ -79,6 +79,11 @@ to get you started quicker
 * `user` {Object}: ***must override***
   1. `find` {Function}  `<userId, callback>` signature
   2. `save` {Function}  `<userId, dataToSave, callback>` signature
+
+***Note***  
+User must have these fields available: `password_reset_code`, `password_reset_time`,
+`activation_code`, `password`  
+
 * `templates` {String} - directory for templates used by `smtp`
 * `resetExpire` {Number} - duration of expiration link validity, default: 60
 * `smtp`: {Function|Object} - function which accepts `type`, `lang`, `data`, `to`, `subject`, `callback`
