@@ -13,7 +13,8 @@ var request = require('supertest'),
     r = request(server),
     fs = require('fs'),
     activator = require('../lib/activator'),
-    templates = __dirname + '/resources';
+    templates = __dirname + '/resources',
+    Errors = require('node-common-errors');
 
 var mail, users
     USERS = {
@@ -24,6 +25,11 @@ var mail, users
         }
     };
 
+function sendError(res, err) {
+  var msg = { message: err.message, data: err.data };
+  res.status(err.code).json(msg);
+}
+
 var quote = function (regex) {
         /*jslint regexp:true */
         var ret = regex.replace(/([()[{*+.$^\\/\\|?])/g, '\\$1');
@@ -32,11 +38,16 @@ var quote = function (regex) {
     },
 
     userModel = {
-        _find: function (login, cb) {
+        _find: function (query, cb) {
             var found = null;
-            if (!login) {
-                cb("nologin");
-            } else if (users[login]) {
+            if (!query) {
+                return cb(new Errors.Common("nologin", 500));
+            }
+
+            // possible login or email
+            var login = _.values(query)[0];
+
+            if (users[login]) {
                 cb(null, _.cloneDeep(users[login]));
             } else {
                 _.each(users, function (val) {
@@ -47,17 +58,26 @@ var quote = function (regex) {
                 });
                 cb(null, _.cloneDeep(found));
             }
+
         },
         find: function () {
             this._find.apply(this, arguments);
         },
         save: function (id, model, cb) {
-            if (id && users[id]) {
-                _.extend(users[id], model);
-                cb(null);
-            } else {
-                cb(404);
+          if (id && users[id]) {
+
+            if (model.$set) {
+              _.extend(users[id], model.$set);
             }
+
+            if (model.$unset) {
+              users[id] = _.omit(users[id], Object.keys(model.$unset));
+            }
+
+            cb(null);
+          } else {
+            cb(404);
+          }
         }
     },
 
@@ -166,7 +186,7 @@ var quote = function (regex) {
 		createActivateHandlerError = function (err, req, res, next) {
 				// the header is not normally set, so we know we incurred the handler
 				res.setHeader("activator", "createActivateHandler");
-				res.status(err.code).send(err.message);
+				sendError(res, err);
 		},
 
     createActivateHandler = function (req, res, next) {
@@ -178,7 +198,7 @@ var quote = function (regex) {
 		completeActivateHandlerError = function (err, req, res, next) {
 				// the header is not normally set, so we know we incurred the handler
 				res.setHeader("activator", "completeActivateHandler");
-				res.status(err.code).send(err.message);
+				sendError(res, err);
 		},
 
     completeActivateHandler = function (req, res, next) {
@@ -190,7 +210,7 @@ var quote = function (regex) {
     createResetHandlerError = function (err, req, res, next) {
 				// the header is not normally set, so we know we incurred the handler
 				res.setHeader("activator", "createResetHandler");
-				res.status(err.code).send(err.message);
+				sendError(res, err);
 		},
 
 		createResetHandler = function (req, res, next) {
@@ -202,7 +222,7 @@ var quote = function (regex) {
 		completeResetHandlerError = function (err, req, res, next) {
 				// the header is not normally set, so we know we incurred the handler
 				res.setHeader("activator", "completeResetHandler");
-				res.status(err.code).send(err.message);
+				sendError(res, err);
 		},
 
     completeResetHandler = function (req, res, next) {
@@ -228,19 +248,19 @@ describe('activator', function () {
         app.post('/usersbad', activator.createActivate);
         app.post('/users', createUser, activator.createActivate);
         app.post('/usersnext', createUser, activator.createActivateNext, createActivateHandler, createActivateHandlerError);
-        app.put('/users/:user/activate', activator.completeActivate);
-        app.put('/usersnext/:user/activate', activator.completeActivateNext, completeActivateHandler, completeActivateHandlerError);
+        app.put('/users/:id/activate', activator.completeActivate);
+        app.put('/usersnext/:id/activate', activator.completeActivateNext, completeActivateHandler, completeActivateHandlerError);
         app.post('/passwordreset', activator.createPasswordReset);
-        app.put('/passwordreset/:user', activator.completePasswordReset);
+        app.put('/passwordreset/:id', activator.completePasswordReset);
         app.post('/passwordresetnext', activator.createPasswordResetNext, createResetHandler, createResetHandlerError);
-        app.put('/passwordresetnext/:user', activator.completePasswordResetNext, completeResetHandler, completeResetHandlerError);
+        app.put('/passwordresetnext/:id', activator.completePasswordResetNext, completeResetHandler, completeResetHandlerError);
     });
 
 		describe('not initialized', function () {
 
 				it('activate should send 500', function (done) {
             r.post('/users').type("json").send({
-                user: "john"
+                id: "john"
             }).expect(500, done);
         });
 
@@ -252,7 +272,7 @@ describe('activator', function () {
 
         it('passwordreset should send 500', function (done) {
             r.post('/passwordreset').type("json").send({
-                user: "john"
+                id: "john"
             }).expect(500, done);
         });
 
@@ -265,7 +285,7 @@ describe('activator', function () {
 
         it('activatenext should send 500', function (done) {
             r.post('/usersnext').type("json").send({
-                user: "john"
+                id: "john"
             }).expect('activator', 'createActivateHandler').expect(500, done);
         });
 
@@ -277,7 +297,7 @@ describe('activator', function () {
 
         it('passwordresetnext should send 500', function (done) {
             r.post('/passwordresetnext').type("json").send({
-                user: "john"
+                id: "john"
             }).expect('activator', 'createResetHandler').expect(500, done);
         });
 
@@ -296,21 +316,22 @@ describe('activator', function () {
                 user: userModel,
                 smtp: smtpConfig,
                 templates: templates,
-                from: 'test@gopickup.net'
+                from: 'test@gopickup.net',
+                idProperty: 'id'
             });
         });
         beforeEach(reset);
 
         describe('activate', function () {
 
-						it('should send 500 for user property not added', function (done) {
-                r.post('/usersbad').expect(500, done);
+						it('should send 400 for user property not added', function (done) {
+                r.post('/usersbad').expect(400, done);
             });
 
             it('should fail for known user but bad code', function (done) {
                 var email, handler;
                 async.waterfall([
-                    function (cb) {
+                    function createUser(cb) {
                         r.post('/users').expect(201, "2", cb);
                     },
                     function (res, cb) {
@@ -402,23 +423,24 @@ describe('activator', function () {
 
             it('should send 404 for unknown email or ID', function (done) {
                 r.post("/passwordreset").type('json').send({
-                    user: "john@localhost"
+                    email: "john@localhost"
                 }).expect(404, done);
             });
 
             it('should send 404 for unknown email or ID with handler', function (done) {
                 r.post("/passwordresetnext").type('json').send({
-                    user: "john@localhost"
+                    email: "john@localhost"
                 }).expect('activator', 'createResetHandler').expect(404, done);
             });
 
             it('should fail for known email but bad code', function (done) {
                 var email = users["1"].email,
                     handler;
+
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordreset').type('json').send({
-                            user: email
+                            email: email
                         }).expect(201, cb);
                     },
                     function (res, cb) {
@@ -440,7 +462,7 @@ describe('activator', function () {
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordresetnext').type('json').send({
-                            user: email
+                            email: email
                         }).expect('activator', 'createResetHandler').expect(201, cb);
                     },
                     function (res, cb) {
@@ -462,7 +484,7 @@ describe('activator', function () {
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordreset').type('json').send({
-                            user: email
+                            email: email
                         }).expect(201, cb);
                     },
                     function (res, cb) {
@@ -483,7 +505,7 @@ describe('activator', function () {
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordresetnext').type('json').send({
-                            user: email
+                            email: email
                         }).expect('activator', 'createResetHandler').expect(201, cb);
                     },
                     function (res, cb) {
@@ -505,7 +527,7 @@ describe('activator', function () {
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordreset').type('json').send({
-                            user: "1"
+                            email: email
                         }).expect(201, cb);
                     },
                     function (res, cb) {
@@ -530,7 +552,7 @@ describe('activator', function () {
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordresetnext').type('json').send({
-                            user: "1"
+                            email: email
                         }).expect('activator', 'createResetHandler').expect(201, cb);
                     },
                     function (res, cb) {
@@ -548,59 +570,13 @@ describe('activator', function () {
                 ], done);
             });
 
-            it('should succeed for known ID', function (done) {
-                var email = users["1"].email,
-                    handler;
-
-                async.waterfall([
-                    function (cb) {
-                        r.post('/passwordreset').type('json').send({
-                            user: "1"
-                        }).expect(201, cb);
-                    },
-                    function (res, cb) {
-                        handler = rHandler(email, cb);
-                        mail.bind(email, handler);
-                    },
-                    function (res, cb) {
-                        mail.unbind(email, handler);
-                        r.put('/passwordreset/' + res.user).type("json").send({
-                            code: res.code,
-                            password: "abcdefgh"
-                        }).expect(200, cb);
-                    }
-                ], done);
-            });
-
-            it('should succeed for known ID with handler', function (done) {
-                var email = users["1"].email,
-                    handler;
-                async.waterfall([
-                    function (cb) {
-                        r.post('/passwordresetnext').type('json').send({
-                            user: "1"
-                        }).expect('activator', 'createResetHandler').expect(201, cb);
-                    },
-                    function (res, cb) {
-                        handler = rHandler(email, cb);
-                        mail.bind(email, handler);
-                    },
-                    function (res, cb) {
-                        mail.unbind(email, handler);
-                        r.put('/passwordresetnext/' + res.user).type("json").send({
-                            code: res.code,
-                            password: "abcdefgh"
-                        }).expect('activator', 'completeResetHandler').expect(200, cb);
-                    }
-                ], done);
-            });
             it('should succeed for known email', function (done) {
                 var email = users["1"].email,
                     handler;
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordreset').type('json').send({
-                            user: email
+                            email: email
                         }).expect(201, cb);
                     },
                     function (res, cb) {
@@ -616,13 +592,14 @@ describe('activator', function () {
                     }
                 ], done);
             });
+
             it('should succeed for known email with handler', function (done) {
                 var email = users["1"].email,
                     handler;
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordresetnext').type('json').send({
-                            user: email
+                            email: email
                         }).expect('activator', 'createResetHandler').expect(201, cb);
                     },
                     function (res, cb) {
@@ -643,12 +620,14 @@ describe('activator', function () {
             before(function () {
                 activator.init({
                     user: userModelEmail,
-                    emailProperty: "funny",
+                    emailProperty: 'funny',
                     smtp: smtpConfig,
                     templates: templates,
-                    from: 'test@gopickup.net'
+                    from: 'test@gopickup.net',
+                    idProperty: 'id'
                 });
             });
+
             it('activate should succeed for known user', function (done) {
                 var email, handler;
                 async.waterfall([
@@ -669,19 +648,23 @@ describe('activator', function () {
                     }
                 ], done);
             });
+
             it('password reset should succeed for known email', function (done) {
                 var email = users["1"].email,
                     handler;
+
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordreset').type('json').send({
-                            user: email
+                            funny: email
                         }).expect(201, cb);
                     },
+
                     function (res, cb) {
                         handler = rHandler(email, cb);
                         mail.bind(email, handler);
                     },
+
                     function (res, cb) {
                         mail.unbind(email, handler);
                         r.put('/passwordreset/' + res.user).type("json").send({
@@ -699,26 +682,30 @@ describe('activator', function () {
                     smtp: smtpConfig,
                     from: 'test@gopickup.net',
                     templates: templates,
-                    id: 'id'
+                    idProperty: 'id'
                 });
             });
             it('activate should succeed for known user', function (done) {
-                var email, handler;
+                var email, handler, id;
                 async.waterfall([
+
                     function (cb) {
                         r.post('/users').type('json').send({
                             email: "foo@localhost"
                         }).expect(201, cb);
                     },
+
                     function (res, cb) {
                         res.text.should.equal("2");
+                        id = users["2"].id;
                         email = users["2"].email;
                         handler = aHandler(email, cb);
                         mail.bind(email, handler);
                     },
+
                     function (res, cb) {
                         mail.unbind(email, handler);
-                        r.put('/users/' + email + '/activate').type("json").send({
+                        r.put('/users/' + id + '/activate').type("json").send({
                             code: res.code
                         }).expect(200, cb);
                     }
@@ -730,7 +717,7 @@ describe('activator', function () {
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordreset').type('json').send({
-                            user: email
+                            email: email
                         }).expect(201, cb);
                     },
                     function (res, cb) {
@@ -756,7 +743,8 @@ describe('activator', function () {
                     user: userModel,
                     smtp: smtpConfig,
                     templates: templatesPath,
-                    from: 'test@gopickup.net'
+                    from: 'test@gopickup.net',
+                    idProperty: 'id'
                 });
 
                 /*jslint stupid:true */
@@ -791,7 +779,7 @@ describe('activator', function () {
                 async.waterfall([
                     function (cb) {
                         r.post('/passwordreset').type('json').send({
-                            user: email
+                            email: email
                         }).expect(201, cb);
                     },
                     function (res, cb) {

@@ -1,12 +1,16 @@
 {
-  "name": "user-activator",
-  "description": "simple user activation and password reset for nodejs",
-  "version": "0.3.0",
-  "url": "http://github.com/deitch/activator",
-  "author": "Avi Deitcher <avi@deitcher.net>",
+  "name": "express-user-activator",
+  "description": "simple user activation and password reset for express.js",
+  "version": "0.1.0",
+  "url": "http://github.com/arkcore/activator",
+  "author": "Vitaly Aminev <vitaly@ark.com>",
+  "contributors": [
+    "Avi Deitcher <avi@deitcher.net>"
+  ],
   "engines": [
     "node >= 0.8"
   ],
+  "license": "MIT",
   "main": "./lib/activator.js",
   "dependencies": {
     "async": "^0.9.0",
@@ -43,6 +47,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "http://github.com/deitch/activator.git"
+    "url": "http://github.com/arkcore/activator.git"
   }
 }
