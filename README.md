@@ -73,25 +73,27 @@ app.use(passwordResetRoutes);
 
 ## Configuration
 
+Everything in the code is pretty much commented, but here is a little helper
+to get you started quicker
 
-* `user` {Object}:
+* `user` {Object}: ***must override***
   1. `find` {Function}  `<userId, callback>` signature
   2. `save` {Function}  `<userId, dataToSave, callback>` signature
 * `templates` {String} - directory for templates used by `smtp`
 * `resetExpire` {Number} - duration of expiration link validity, default: 60
 * `smtp`: {Function|Object} - function which accepts `type`, `lang`, `data`, `to`, `subject`, `callback`
   and `callback` params and sends emails based on them, defaults: built-in mail composer
-* `from`: {String|Object|Null} - to be used in `nodemailer`'s `from` field
+* `from`: {String|Object|Null} - to be used in `nodemailer`'s `from` field ***must override***
 * `emailProperty`: {String} - defaults to `email`
 * `idProperty`: {String} - defaults to `_id`
 * `createNextHandler`: {Function}
 * `createResponse`: {Function}
 * `transport`: {Function} - set this if you want to use preconfigured transport
  setup these for generating links in the email templates
-* `protocol`: {String} - defaults to 'http://'
-* `domain`: {String} - defaults to 'localhost'
-* `pathActivate`: {String} - defaults to '/api/1/users/activate'
-* `pathResetPassword`: {String} - defaults to '/api/1/users/forgot'
+* `protocol`: {String} - defaults to `http://`
+* `domain`: {String} - defaults to `localhost`, ***must override***
+* `pathActivate`: {String} - defaults to `/api/1/users/activate`
+* `pathResetPassword`: {String} - defaults to `/api/1/users/forgot`
 * `password_reset_subject`: {String} - subject for password reset emails
 * `activation_subject`: {String} - subject for account activation emails
 
