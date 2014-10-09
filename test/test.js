@@ -31,13 +31,6 @@ var quote = function (regex) {
         return (ret);
     },
 
-    bodyMatcher = function (body, matcher) {
-        /*jslint regexp:true */
-        var ret = body.replace(/[\r\n]+/g, '').match(new RegExp(quote(matcher.replace(/[\r\n]+/g, '')).replace(/<%=[^%]+%>/g, '.*')));
-        /*jslint regexp:false */
-        return (ret);
-    },
-
     userModel = {
         _find: function (login, cb) {
             var found = null;
@@ -93,7 +86,7 @@ var quote = function (regex) {
 			port: MAILPORT,
 			host: 'localhost',
 			tls: { rejectUnauthorized: false },
-      debug: true
+      // debug: true
 		},
 
 		createUser = function (req, res, next) {
@@ -134,7 +127,6 @@ var quote = function (regex) {
             // do we have actual content to test? if so, we should ignore templates, because we do not have the request stuff
             if (data && data.text) {
                 should.exist(content.text);
-                should.exist(bodyMatcher(content.text, data.text));
                 url = content.text.match(re);
                 should.exist(url);
                 // check that code and email match what is in database
@@ -144,13 +136,12 @@ var quote = function (regex) {
             }
             if (data && data.html) {
                 should.exist(content.html);
-                should.exist(bodyMatcher(content.html, data.html));
                 url = content.html.match(re);
                 should.exist(url);
                 // check that code and email match what is in database
                 url.length.should.eql(4);
                 ret = _.object(["path", "code", "email", "user"], url);
-                ret.email.should.eql(email);
+                ret.email.should.eql(encodeURIComponent(email));
             }
             if (!ret) {
                 url = content.html.match(re);
@@ -169,7 +160,7 @@ var quote = function (regex) {
     },
 
     rHandler = function (email, data, cb) {
-        return genHandler(email, "Password Reset Email", '/api/1/users/forgot', data, cb);
+        return genHandler(email, "Reset Password", '/api/1/users/forgot', data, cb);
     },
 
 		createActivateHandlerError = function (err, req, res, next) {
@@ -756,23 +747,24 @@ describe('activator', function () {
                 ], done);
             });
         });
+
         describe('with html emails', function () {
-            var atemplate, htemplate, prtemplate, templatesPath;
+            var htemplate, prtemplate, templatesPath;
             before(function () {
-                templatesPath = templates + '/html';
+                templatesPath = templates;
                 activator.init({
                     user: userModel,
                     smtp: smtpConfig,
                     templates: templatesPath,
                     from: 'test@gopickup.net'
                 });
+
                 /*jslint stupid:true */
-                atemplate = splitTemplate(templatesPath + '/activate.txt');
-                htemplate = splitTemplate(templatesPath + '/activate.html');
-                prtemplate = splitTemplate(templatesPath + '/passwordreset.html');
+                htemplate = fs.readFileSync(templatesPath + '/default/activate.jade', 'utf-8');
+                prtemplate = fs.readFileSync(templatesPath + '/default/passwordreset.jade', 'utf-8');
                 /*jslint stupid:false */
             });
-            it('activate should send txt and html', function (done) {
+            it('activate should send html', function (done) {
                 var email, handler;
                 async.waterfall([
                     function (cb) {
@@ -782,8 +774,7 @@ describe('activator', function () {
                         res.text.should.equal("2");
                         email = users["2"].email;
                         handler = aHandler(email, {
-                            text: atemplate[2],
-                            html: htemplate[2]
+                            html: htemplate
                         }, cb);
                         mail.bind(email, handler);
                     },
@@ -793,6 +784,7 @@ describe('activator', function () {
                     }
                 ], done);
             });
+
             it('password reset should send only html', function (done) {
                 var email = users["1"].email,
                     handler;
