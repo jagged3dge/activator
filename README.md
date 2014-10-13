@@ -79,6 +79,8 @@ to get you started quicker
 * `user` {Object}: ***must override***
   1. `find` {Function}  `<userId, callback>` signature
   2. `save` {Function}  `<userId, dataToSave, callback>` signature
+* `user` {Object}: ***can override***
+  1. `throttle` {Function}  `<userModel, callback>` signature
 
 ***Note***  
 User must have these fields available: `password_reset_code`, `password_reset_time`,
